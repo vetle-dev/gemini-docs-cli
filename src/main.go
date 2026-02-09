@@ -1,115 +1,136 @@
-// Pakke-definisjon (alltid 'package main' for kjørbare programmer)
 package main
 
-// Import-blokk (konseptuell)
+// Import-blokk
 /*
-  Du trenger biblioteker for:
-  - Tekstmanipulasjon (strings, fmt)
-  - Fil- og OS-operasjoner (os, path/filepath, flag)
-  - Google Gemini SDK (github.com/google/generative-ai-go/genai)
-  - Kontekst-håndtering (context)
+  Biblioteker:
+  - "strings", "fmt", "log"
+  - "os", "path/filepath", "flag"
+  - "context"
+  - "github.com/google/generative-ai-go/genai"
+  - "google.golang.org/api/option"
 */
 
 func main() {
 	// ---------------------------------------------------------
 	// 1. OPPSETT OG KONFIGURASJON
 	// ---------------------------------------------------------
-	// Bruk 'flag'-pakken til å lese input-argumenter fra kommandolinjen:
-	//   --path (hvor ligger koden?)
-	//   --model (hvilken modell?)
-	// Parse flaggene.
+	// flag.String("path", ...) -> Hvor er app-koden?
+	// flag.String("model", ...)
+	// flag.Parse()
 
-	// Hent API-nøkkel fra miljøvariabler (os.Getenv).
-	// VIKTIG GO-LÆRDOM: Sjekk alltid om variabler er tomme.
-	// Hvis nøkkel mangler -> log.Fatal("Mangler nøkkel!")
+	// Hent API Key fra os.Getenv.
+	// Hvis tom -> log.Fatal.
 
 	// ---------------------------------------------------------
 	// 2. INITIALISER GEMINI KLIENT
 	// ---------------------------------------------------------
-	// Opprett en 'context' (ctx := context.Background()).
-	// Opprett klienten (genai.NewClient).
-	// HÅNDTER FEIL: I Go sjekker vi alltid `if err != nil`.
-
-	// VIKTIG GO-LÆRDOM: Bruk 'defer client.Close()'.
-	// Dette garanterer at forbindelsen lukkes når main() er ferdig,
-	// selv om programmet krasjer lenger ned.
+	// context.Background()
+	// genai.NewClient(...)
+	// defer client.Close()
 
 	// ---------------------------------------------------------
 	// 3. LES INN MALENE (TEMPLATES)
 	// ---------------------------------------------------------
-	// Les filen "templates/system_instruction.md" -> lagre i variabel.
-	// Les filen "templates/output_template.md" -> lagre i variabel.
-	// (Bruk os.ReadFile)
+	// os.ReadFile("templates/system_instruction.md")
+	// os.ReadFile("templates/output_template.md")
+
+	// ---------------------------------------------------------
+	// 3.5. LES DESIGNBESLUTNINGER (NY! - ADR)
+	// ---------------------------------------------------------
+	// Vi ser etter mappen "docs/adr" inne i app-repoet.
+	// adrPath := filepath.Join(targetDirectory, "docs", "adr")
+
+	// Kaller ny hjelpefunksjon (se bunnen av filen).
+	// adrContext := collectDesignDecisions(adrPath)
 
 	// ---------------------------------------------------------
 	// 4. SAMLE KODEBASEN (SCANNER)
 	// ---------------------------------------------------------
-	// Her kaller du en hjelpefunksjon (se lenger ned) som går gjennom mappene.
 	// codeContext, err := scanFiles(targetDirectory)
-	// Hvis feil -> Stopp programmet.
+	// Sjekk feil.
 
 	// ---------------------------------------------------------
-	// 5. BYGG PROMPTEN (SAMMENSETNING)
+	// 5. BYGG PROMPTEN (OPPDATERT SANDWICH)
 	// ---------------------------------------------------------
-	// VIKTIG GO-LÆRDOM: Bruk 'strings.Builder' her.
-	// Ikke bruk "+" for å slå sammen store tekster (det er tregt i Go).
+	// var sb strings.Builder
 
-	// Builder.Write(SystemInstruction)
-	// Builder.WriteString("\n---\n")
-	// Builder.Write(OutputTemplate)
-	// Builder.WriteString("\n---\n")
-	// Builder.WriteString("Her er koden:\n")
-	// Builder.Write(CodeContext)
+	// A. System Instruction (Rollen)
+	// sb.Write(systemInstruction)
+	// sb.WriteString("\n---\n")
+
+	// B. Template (Formatet)
+	// sb.WriteString("Please use this template:\n")
+	// sb.Write(outputTemplate)
+	// sb.WriteString("\n---\n")
+
+	// C. Design Decisions (Kontekst) - NYTT!
+	// Her primer vi AI-en med hvorfor ting er som de er.
+	// sb.WriteString("Here are the Architecture Decision Records (ADR):\n")
+	// sb.WriteString(adrContext)
+	// sb.WriteString("\n---\n")
+
+	// D. Koden (Fakta)
+	// sb.WriteString("Here is the source code:\n")
+	// sb.WriteString(codeContext)
+
+	// fullPrompt := sb.String()
 
 	// ---------------------------------------------------------
 	// 6. SEND TIL AI (API KALL)
 	// ---------------------------------------------------------
-	// Velg modell: model := client.GenerativeModel(modelName)
-	// Send data: resp, err := model.GenerateContent(ctx, fullPrompt)
-
-	// Hent ut teksten fra svaret (ligger ofte inni resp.Candidates[0].Content).
+	// model := client.GenerativeModel(modelName)
+	// resp, err := model.GenerateContent(ctx, genai.Text(fullPrompt))
+	// Hent tekst fra responsen.
 
 	// ---------------------------------------------------------
 	// 7. LAGRE RESULTATET
 	// ---------------------------------------------------------
-	// Lag mappen "docs" hvis den ikke finnes (os.MkdirAll).
-	// Skriv svaret til filen "docs/AI_GENERATED_DOCS.md" (os.WriteFile).
-
-	// Print "Suksess!" til terminalen.
+	// os.MkdirAll(filepath.Join(targetDirectory, "docs"), ...)
+	// os.WriteFile(..., data, 0644)
+	// Print "Done".
 }
 
 // ---------------------------------------------------------
-// HJELPEFUNKSJON: FIL-SCANNER
+// HJELPEFUNKSJON 1: FIL-SCANNER (Rekursiv)
 // ---------------------------------------------------------
 func scanFiles(rootPath string) (string, error) {
-	// Opprett en ny strings.Builder for å samle all koden.
+	// strings.Builder...
+	// filepath.WalkDir(rootPath, func(...) {
+	// 1. Ignorer .git, node_modules, etc (return filepath.SkipDir)
+	// 2. Sjekk filendelser (.go, .tf, .yaml)
+	// 3. Les fil
+	// 4. Formater: "--- FILE: [navn] ---\n [innhold]"
+	// })
+	// return builder.String()
+}
 
-	// VIKTIG GO-LÆRDOM: Bruk 'filepath.WalkDir'.
-	// Den går gjennom filsystemet rekursivt (mapper inni mapper).
-	err := filepath.WalkDir(rootPath, func(path string, d os.DirEntry, err error) error {
+// ---------------------------------------------------------
+// HJELPEFUNKSJON 2: LES DESIGNBESLUTNINGER (Flat liste)
+// ---------------------------------------------------------
+func collectDesignDecisions(adrPath string) string {
+	// 1. SJEKK OM MAPPEN FINNES
+	// GO-LÆRDOM: Bruk os.Stat() for å sjekke eksistens.
+	// if _, err := os.Stat(adrPath); os.IsNotExist(err) {
+	//     return "No ADRs found." // Helt ok, vi bare returnerer tomt.
+	// }
 
-		// A. FILTERING AV MAPPER (STØY)
-		// Hvis 'd' er en mappe:
-		//   Sjekk om den heter ".git", "node_modules", "vendor", etc.
-		//   Hvis ja -> return filepath.SkipDir (Go hopper over hele mappen).
+	// 2. LES MAPPEN (IKKE REKURSIVT)
+	// GO-LÆRDOM: Bruk os.ReadDir() når du bare vil ha filene i én mappe.
+	// entries, err := os.ReadDir(adrPath)
 
-		// B. FILTRERING AV FILER (HVA SKAL MED?)
-		// Sjekk filendelse (filepath.Ext).
-		// Er det .tf? .go? .yaml? .md?
-		// Hvis nei -> return nil (gå til neste fil).
+	// strings.Builder...
 
-		// C. LES FILEN
-		// Les innholdet (os.ReadFile).
+	// 3. LOOP GJENNOM FILENE
+	// for _, entry := range entries {
+	//     if entry.IsDir() { continue } // Hopp over undermapper
+	//     if !strings.HasSuffix(entry.Name(), ".md") { continue } // Kun markdown
 
-		// D. FORMATER TIL MARKDOWN
-		// Skriv til builderen:
-		// "--- FILNAVN: [sti] ---\n"
-		// "```[filtype]\n"
-		// [filinnhold]
-		// "\n```\n"
+	//     fullPath := filepath.Join(adrPath, entry.Name())
+	//     content, _ := os.ReadFile(fullPath)
 
-		return nil // Alt gikk bra, fortsett til neste.
-	})
+	//     sb.WriteString("\n--- DECISION RECORD: " + entry.Name() + " ---\n")
+	//     sb.Write(content)
+	// }
 
-	return builder.String(), err
+	// return sb.String()
 }
