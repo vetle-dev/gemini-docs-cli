@@ -17,7 +17,7 @@ jobs:
   workflow-gemini-docs:
     uses: vetle-dev/workflow-gemini-docs/.github/workflows/main.yml@main
     with:
-      model: 'gemini-1.5-pro'
+      model: 'gemini-3-flash-preview'
     secrets:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 ```
