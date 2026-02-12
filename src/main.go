@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	ignore "github.com/sabhiram/go-gitignore"
 	//"google.golang.org/api/option"
 	"google.golang.org/genai"
 	"log"
@@ -67,7 +68,7 @@ func main() {
 
 	fullPrompt := sb.String()
 
-	// fmt.Println(fullPrompt)
+	fmt.Println(fullPrompt)
 
 	// ---------------------------------------------------------
 	// 6. Send to AI
@@ -109,55 +110,65 @@ func main() {
 	fmt.Printf("Success! Documentation saved to: %s\n", outputFile)
 }
 
-// Helper function: Recursive file scanner
+// Helper function: Recursive file scanner with .gitignore support
+// scanFiles recursively walks the directory tree, respecting .gitignore and whitelists.
 func scanFiles(rootPath string) (string, error) {
 	var sb strings.Builder
 
-	// Blacklist directories
-	ignoreMap := map[string]bool{
-		".git": true, "node_modules": true, "docs": true,
+	// Attempt to load .gitignore rules
+	gitIgnorePath := filepath.Join(rootPath, ".gitignore")
+	gitIgnore, _ := ignore.CompileIgnoreFile(gitIgnorePath)
+
+	// Hardcoded directories to always skip
+	ignoredDirs := map[string]bool{
+		".git":         true,
+		"docs":         true, // Avoid recursive loop by ignoring output folder
+		"node_modules": true,
+		"vendor":       true,
 	}
 
-	// Whitelist file extensions
-	allowedExtMap := map[string]bool{
-		".go": true, ".tf": true, ".yaml": true, ".py": true, ".md": true,
+	// Whitelist allowed file extensions
+	allowedExts := map[string]bool{
+		".go": true, ".tf": true, ".yaml": true,
+		".py": true, ".md": true, ".ts": true, ".js": true,
 	}
 
-	// Walk through directories and filter them
-	err := filepath.WalkDir(rootPath, func(path string, dir os.DirEntry, err error) error {
-
+	err := filepath.WalkDir(rootPath, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			return nil
+			return nil // Skip files we cannot access
 		}
 
-		// Check if it is a directory and filter out blacklist
-		if dir.IsDir() {
-			if ignoreMap[dir.Name()] {
+		// Calculate relative path for cleaner logs and .gitignore matching
+		relPath, _ := filepath.Rel(rootPath, path)
+
+		// 1. Check hardcoded directory exclusions
+		if d.IsDir() && ignoredDirs[d.Name()] {
+			return filepath.SkipDir
+		}
+
+		// 2. Check .gitignore rules
+		if gitIgnore != nil && gitIgnore.MatchesPath(relPath) {
+			if d.IsDir() {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 
+		// Skip if it is a directory (we only read files)
+		if d.IsDir() {
+			return nil
+		}
+
+		// 3. Check file extension whitelist
 		ext := filepath.Ext(path)
-
-		// Check if file extension is in our whitelist
-		if allowedExtMap[ext] {
-
-			// Read files
+		if allowedExts[ext] {
 			content, err := os.ReadFile(path)
 			if err != nil {
-				// Skip file if we're not able to read
 				return nil
 			}
 
-			// Format the header so the AI knows what file it is and add it to built string
-			// "--- FILE: src/main.go ---"
-			sb.WriteString("\n--- FILE: " + path + " ---\n")
-
-			// Add content from read files to built string
+			sb.WriteString("\n--- FILE: " + relPath + " ---\n")
 			sb.Write(content)
-
-			// Add new line for cleaner look
 			sb.WriteString("\n")
 		}
 
@@ -171,7 +182,7 @@ func scanFiles(rootPath string) (string, error) {
 func collectDesignDecisions(adrPath string) string {
 	// Check if folder exists
 	if _, err := os.Stat(adrPath); os.IsNotExist(err) {
-		return "No ADRs found." // Helt ok, vi bare returnerer tomt.
+		return "No ADRs found."
 	}
 
 	// Read the folder
