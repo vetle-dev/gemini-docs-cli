@@ -2,7 +2,10 @@ module workflow-gemini-docs
 
 go 1.25.1
 
-require google.golang.org/genai v1.45.0
+require (
+	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
+	google.golang.org/genai v1.45.0
+)
 
 require (
 	cloud.google.com/go v0.116.0 // indirect
